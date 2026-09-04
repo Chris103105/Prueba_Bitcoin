@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tablero BTC</title>
+<meta name="description" content="Precio de bitcoin, RSI, MACD, sentimiento del mercado, simulador de inversión periódica y bitácora personal.">
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#131B29">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tablero BTC">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --ink: #131B29;
+    --panel: #1B2536;
+    --panel-line: #2C3B54;
+    --paper: #F2EDE2;
+    --paper-dim: #9AA3B5;
+    --amber: #E8A33D;
+    --sage: #7FA06F;
+    --rust: #C0583F;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin: 0;
+    padding: 0;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'Fraunces', serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body{
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 20px 16px 40px;
+  }
+
+  .board{
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .status-row{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--paper-dim);
+    letter-spacing: 0.02em;
+    padding: 0 2px 18px;
+  }
+
+  .status-left{ display: flex; align-items: center; gap: 7px; }
+
+  .dot{
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--sage);
+    box-shadow: 0 0 0 3px rgba(127,160,111,0.18);
+  }
+  .dot.offline{ background: var(--rust); box-shadow: 0 0 0 3px rgba(192,88,63,0.18); }
+
+  .hero{
+    text-align: center;
+    padding: 6px 0 22px;
+    border-bottom: 1px solid var(--panel-line);
+    margin-bottom: 22px;
+  }
+
+  .hero-label{ font-family: 'Space Mono', monospace; font-size: 12px; color: var(--paper-dim); margin-bottom: 10px; }
+
+  .price{
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+    font-size: 52px;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .price .cents{ font-size: 26px; color: var(--paper-dim); }
+
+  .delta{ margin-top: 12px; font-family: 'Space Mono', monospace; font-size: 15px; }
+  .delta.up{ color: var(--sage); }
+  .delta.down{ color: var(--rust); }
+
+  .fng-line{
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--paper-dim);
+  }
+  .fng-line .fng-value{ font-family: 'Space Mono', monospace; color: var(--amber); }
+
+  .section-title{ font-size: 13px; color: var(--paper-dim); margin: 0 0 12px; font-style: italic; }
+
+  .ledger{ margin-bottom: 26px; }
+
+  .ledger-row{ display: flex; align-items: baseline; gap: 8px; padding: 9px 0; }
+  .ledger-row .label{ font-size: 15px; white-space: nowrap; }
+  .ledger-row .fill{ flex: 1; border-bottom: 1px dotted var(--panel-line); transform: translateY(-4px); }
+  .ledger-row .value{ font-family: 'Space Mono', monospace; font-size: 14px; white-space: nowrap; }
+  .ledger-row .value.up{ color: var(--sage); }
+  .ledger-row .value.down{ color: var(--rust); }
+
+  .chart-header{ display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+  .chart-header .section-title{ margin-bottom: 0; }
+
+  .tf-group{ display: flex; gap: 6px; }
+  .tf-btn{
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    background: none;
+    border: 1px solid var(--panel-line);
+    color: var(--paper-dim);
+    padding: 4px 9px;
+    cursor: pointer;
+    border-radius: 3px;
+  }
+  .tf-btn.active{ color: var(--amber); border-color: var(--amber); }
+
+  .chart-wrap{ margin-bottom: 28px; }
+  .chart-wrap svg{ width: 100%; height: auto; display: block; }
+
+  .chart-caption{ font-family: 'Space Mono', monospace; font-size: 10px; color: var(--paper-dim); text-align: right; margin-top: 6px; }
+
+  .ticket{
+    border: 1px dashed var(--panel-line);
+    background: var(--panel);
+    padding: 20px 18px;
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  .ticket-verdict{ font-family: 'Space Mono', monospace; font-weight: 700; font-size: 20px; letter-spacing: 0.03em; margin-bottom: 6px; }
+  .ticket-verdict.compra{ color: var(--sage); }
+  .ticket-verdict.venta{ color: var(--rust); }
+  .ticket-verdict.neutral{ color: var(--amber); }
+
+  .ticket-reason{ font-size: 14px; color: var(--paper-dim); max-width: 320px; margin: 0 auto; line-height: 1.5; }
+
+  .panel-box{
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    padding: 18px;
+    margin-bottom: 24px;
+  }
+
+  .panel-box .section-title{ margin-bottom: 4px; }
+  .panel-sub{ font-size: 12px; color: var(--paper-dim); margin-bottom: 16px; line-height: 1.5; }
+
+  .field-row{ display: flex; gap: 10px; margin-bottom: 12px; }
+  .field{ flex: 1; }
+  .field label{ display: block; font-family: 'Space Mono', monospace; font-size: 10px; color: var(--paper-dim); margin-bottom: 5px; }
+  .field input, .field select{
+    width: 100%;
+    background: var(--ink);
+    border: 1px solid var(--panel-line);
+    color: var(--paper);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    padding: 8px 9px;
+    border-radius: 3px;
+  }
+
+  .action-btn{
+    width: 100%;
+    background: none;
+    border: 1px solid var(--amber);
+    color: var(--amber);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    padding: 10px;
+    cursor: pointer;
+    border-radius: 3px;
+    margin-top: 4px;
+  }
+  .action-btn:active{ background: rgba(232,163,61,0.1); }
+
+  .action-btn.ghost{ border-color: var(--panel-line); color: var(--paper-dim); }
+
+  .result-block{
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dotted var(--panel-line);
+    display: none;
+  }
+  .result-block.show{ display: block; }
+
+  .result-row{ display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; }
+  .result-row .rlabel{ color: var(--paper-dim); }
+  .result-row .rvalue{ font-family: 'Space Mono', monospace; }
+  .result-row .rvalue.up{ color: var(--sage); }
+  .result-row .rvalue.down{ color: var(--rust); }
+
+  .result-note{ font-size: 11px; color: var(--paper-dim); margin-top: 10px; line-height: 1.5; font-style: italic; }
+
+  .journal-summary{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .summary-cell{ background: var(--ink); border: 1px solid var(--panel-line); padding: 10px; border-radius: 3px; }
+  .summary-cell .slabel{ font-size: 10px; color: var(--paper-dim); font-family: 'Space Mono', monospace; margin-bottom: 4px; }
+  .summary-cell .svalue{ font-family: 'Space Mono', monospace; font-size: 15px; }
+  .summary-cell .svalue.up{ color: var(--sage); }
+  .summary-cell .svalue.down{ color: var(--rust); }
+
+  .journal-list{ margin-top: 14px; }
+  .journal-entry{
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 0; border-bottom: 1px dotted var(--panel-line);
+    font-size: 12px;
+  }
+  .journal-entry .je-left{ display: flex; flex-direction: column; gap: 2px; }
+  .journal-entry .je-type{ font-family: 'Space Mono', monospace; font-size: 11px; }
+  .journal-entry .je-type.compra{ color: var(--sage); }
+  .journal-entry .je-type.venta{ color: var(--rust); }
+  .journal-entry .je-date{ color: var(--paper-dim); font-size: 11px; }
+  .journal-entry .je-amount{ font-family: 'Space Mono', monospace; }
+  .journal-entry .je-del{
+    background: none; border: none; color: var(--paper-dim);
+    font-family: 'Space Mono', monospace; cursor: pointer; font-size: 14px; padding: 0 0 0 10px;
+  }
+
+  .journal-empty{ font-size: 12px; color: var(--paper-dim); text-align: center; padding: 10px 0; }
+
+  .footer{ display: flex; align-items: center; justify-content: space-between; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--paper-dim); }
+
+  .refresh-btn{
+    background: none; border: 1px solid var(--panel-line); color: var(--paper);
+    font-family: 'Space Mono', monospace; font-size: 12px; padding: 8px 14px; cursor: pointer; border-radius: 3px;
+  }
+  .refresh-btn:active{ background: var(--panel); }
+  .refresh-btn:disabled{ opacity: 0.5; }
+
+  .disclaimer{ text-align: center; font-size: 12px; color: var(--paper-dim); margin-top: 26px; line-height: 1.6; font-style: italic; }
+
+  .error-box{ text-align: center; padding: 30px 10px; color: var(--paper-dim); font-size: 14px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<div class="board">
+
+  <div class="status-row">
+    <div class="status-left">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">conectando</span>
+    </div>
+    <span id="clockText">--:--</span>
+  </div>
+
+  <div class="hero">
+    <div class="hero-label">precio del bitcoin</div>
+    <div class="price" id="priceText">$----</div>
+    <div class="delta" id="deltaText">calculando cambio de 24h…</div>
+    <div class="fng-line" id="fngLine"></div>
+  </div>
+
+  <div id="mainContent">
+    <div class="ledger">
+      <div class="section-title">indicadores</div>
+      <div class="ledger-row">
+        <span class="label">RSI (14 días)</span>
+        <span class="fill"></span>
+        <span class="value" id="rsiValue">--</span>
+      </div>
+      <div class="ledger-row">
+        <span class="label">Tendencia (SMA 20/50)</span>
+        <span class="fill"></span>
+        <span class="value" id="trendValue">--</span>
+      </div>
+      <div class="ledger-row">
+        <span class="label">Cruce de medias</span>
+        <span class="fill"></span>
+        <span class="value" id="crossValue">--</span>
+      </div>
+      <div class="ledger-row">
+        <span class="label">MACD (momentum)</span>
+        <span class="fill"></span>
+        <span class="value" id="macdValue">--</span>
+      </div>
+    </div>
+
+    <div class="chart-wrap">
+      <div class="chart-header">
+        <div class="section-title">gráfico de precio</div>
+        <div class="tf-group" id="tfGroup">
+          <button class="tf-btn" data-days="30">30D</button>
+          <button class="tf-btn active" data-days="90">90D</button>
+          <button class="tf-btn" data-days="365">1A</button>
+        </div>
+      </div>
+      <svg id="chartSvg" viewBox="0 0 300 100" preserveAspectRatio="none"></svg>
+      <div class="chart-caption" id="chartCaption"></div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-verdict neutral" id="verdictText">— — —</div>
+      <div class="ticket-reason" id="verdictReason">Cargando análisis del mercado…</div>
+    </div>
+
+    <!-- Simulador DCA -->
+    <div class="panel-box">
+      <div class="section-title">simulador de inversión periódica (DCA)</div>
+      <div class="panel-sub">Qué hubiera pasado si metieras un monto fijo cada semana o mes, en lugar de intentar adivinar el momento exacto.</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Monto (USD)</label>
+          <input type="number" id="dcaAmount" value="20" min="1" step="1">
+        </div>
+        <div class="field">
+          <label>Frecuencia</label>
+          <select id="dcaFreq">
+            <option value="7">Semanal</option>
+            <option value="30">Mensual</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Periodo</label>
+          <select id="dcaPeriod">
+            <option value="90">Últimos 3 meses</option>
+            <option value="180">Últimos 6 meses</option>
+            <option value="365" selected>Últimos 12 meses</option>
+          </select>
+        </div>
+      </div>
+      <button class="action-btn" id="dcaRunBtn">simular</button>
+      <div class="result-block" id="dcaResult">
+        <div class="result-row"><span class="rlabel">Total invertido</span><span class="rvalue" id="dcaInvested">--</span></div>
+        <div class="result-row"><span class="rlabel">BTC acumulado</span><span class="rvalue" id="dcaBtc">--</span></div>
+        <div class="result-row"><span class="rlabel">Valor hoy</span><span class="rvalue" id="dcaValue">--</span></div>
+        <div class="result-row"><span class="rlabel">Ganancia/pérdida</span><span class="rvalue" id="dcaGain">--</span></div>
+        <div class="result-row"><span class="rlabel">Vs. comprar todo de una vez</span><span class="rvalue" id="dcaLumpSum">--</span></div>
+        <div class="result-note">Simulación con precios históricos reales de bitcoin. No incluye comisiones de la plataforma que uses. Resultados pasados no garantizan resultados futuros.</div>
+      </div>
+    </div>
+
+    <!-- Bitácora personal -->
+    <div class="panel-box">
+      <div class="section-title">mi bitácora</div>
+      <div class="panel-sub">Registra tus compras y ventas reales (en Chivo o donde sea) para ver tu costo promedio y tu ganancia real. Se guarda solo en este teléfono.</div>
+
+      <div class="journal-summary">
+        <div class="summary-cell">
+          <div class="slabel">btc en posesión</div>
+          <div class="svalue" id="jBtcHeld">0.00000000</div>
+        </div>
+        <div class="summary-cell">
+          <div class="slabel">costo promedio</div>
+          <div class="svalue" id="jAvgCost">--</div>
+        </div>
+        <div class="summary-cell">
+          <div class="slabel">invertido neto</div>
+          <div class="svalue" id="jInvested">$0.00</div>
+        </div>
+        <div class="summary-cell">
+          <div class="slabel">ganancia/pérdida</div>
+          <div class="svalue" id="jPL">--</div>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Tipo</label>
+          <select id="jType">
+            <option value="compra">Compra</option>
+            <option value="venta">Venta</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Monto (USD)</label>
+          <input type="number" id="jAmount" placeholder="20" min="0" step="0.01">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Precio BTC al momento</label>
+          <input type="number" id="jPrice" placeholder="0.00" min="0" step="0.01">
+        </div>
+        <div class="field" style="display:flex; align-items:flex-end;">
+          <button class="action-btn ghost" id="jUseCurrentBtn" type="button" style="margin-top:0;">usar precio actual</button>
+        </div>
+      </div>
+      <button class="action-btn" id="jAddBtn">agregar a la bitácora</button>
+
+      <div class="journal-list" id="journalList">
+        <div class="journal-empty">Aún no tienes registros.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <span id="updatedText">actualizando…</span>
+    <button class="refresh-btn" id="refreshBtn">actualizar</button>
+  </div>
+
+  <div class="disclaimer">
+    Esto no es asesoría financiera. Los indicadores y simulaciones son herramientas de apoyo basadas en datos históricos, no garantías de resultados futuros.
+  </div>
+
+</div>
+
+<script>
+const RSI_PERIOD = 14;
+const SMA_SHORT = 20;
+const SMA_LONG = 50;
+const AUTO_REFRESH_MS = 5 * 60 * 1000;
+const JOURNAL_KEY = 'btc_journal_entries_v1';
+
+let state = {
+  dailyPrices: [],   // hasta 365 días, [precio,...]
+  dailyTimestamps: [],
+  currentPrice: null,
+  chartDays: 90,
+};
+
+// ---------- indicadores ----------
+
+function computeRSI(prices, period = RSI_PERIOD) {
+  if (prices.length < period + 1) return null;
+  const gains = [], losses = [];
+  for (let i = 1; i < prices.length; i++) {
+    const change = prices[i] - prices[i - 1];
+    gains.push(Math.max(change, 0));
+    losses.push(Math.max(-change, 0));
+  }
+  let avgGain = gains.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  let avgLoss = losses.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < gains.length; i++) {
+    avgGain = (avgGain * (period - 1) + gains[i]) / period;
+    avgLoss = (avgLoss * (period - 1) + losses[i]) / period;
+  }
+  if (avgLoss === 0) return 100;
+  const rs = avgGain / avgLoss;
+  return 100 - 100 / (1 + rs);
+}
+
+function sma(prices, period) {
+  if (prices.length < period) return null;
+  const slice = prices.slice(-period);
+  return slice.reduce((a, b) => a + b, 0) / period;
+}
+
+function smaSeries(prices, period) {
+  if (prices.length < period) return [];
+  const out = [];
+  for (let i = period; i <= prices.length; i++) {
+    const slice = prices.slice(i - period, i);
+    out.push(slice.reduce((a, b) => a + b, 0) / period);
+  }
+  return out;
+}
+
+function detectCross(shortSeries, longSeries) {
+  if (shortSeries.length < 2 || longSeries.length < 2) return null;
+  const diffToday = shortSeries[shortSeries.length - 1] - longSeries[longSeries.length - 1];
+  const diffYesterday = shortSeries[shortSeries.length - 2] - longSeries[longSeries.length - 2];
+  if (diffYesterday <= 0 && diffToday > 0) return 'golden_cross';
+  if (diffYesterday >= 0 && diffToday < 0) return 'death_cross';
+  return null;
+}
+
+function emaFull(prices, period) {
+  const k = 2 / (period + 1);
+  const out = [prices[0]];
+  for (let i = 1; i < prices.length; i++) {
+    out.push(prices[i] * k + out[i - 1] * (1 - k));
+  }
+  return out;
+}
+
+function computeMACD(prices) {
+  if (prices.length < 35) return null;
+  const ema12 = emaFull(prices, 12);
+  const ema26 = emaFull(prices, 26);
+  const macdLine = prices.map((_, i) => ema12[i] - ema26[i]);
+  const signal = emaFull(macdLine, 9);
+  const hist = macdLine.map((v, i) => v - signal[i]);
+  return { macdLine, signal, hist };
+}
+
+async function fetchFearGreed() {
+  const res = await fetch('https://api.alternative.me/fng/?limit=1&format=json');
+  if (!res.ok) throw new Error('fng request failed');
+  const data = await res.json();
+  const d = data.data[0];
+  return { value: parseInt(d.value, 10), label: d.value_classification };
+}
+
+// ---------- formato ----------
+
+function formatUSD(n, decimals = 2) {
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function formatPrice(price) {
+  const [whole, rest] = price.toFixed(2).split('.');
+  const withCommas = Number(whole).toLocaleString('en-US');
+  return { whole: withCommas, cents: rest };
+}
+
+// ---------- gráfico ----------
+
+function buildChartPath(prices) {
+  const w = 300, h = 100, pad = 4;
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = (max - min) || 1;
+  const stepX = (w - pad * 2) / (prices.length - 1);
+  const points = prices.map((p, i) => {
+    const x = pad + i * stepX;
+    const y = pad + (h - pad * 2) * (1 - (p - min) / range);
+    return [x, y];
+  });
+  const linePath = points.map((pt, i) => (i === 0 ? 'M' : 'L') + pt[0].toFixed(1) + ',' + pt[1].toFixed(1)).join(' ');
+  const areaPath = linePath + ` L${points[points.length - 1][0].toFixed(1)},${h} L${points[0][0].toFixed(1)},${h} Z`;
+  return { linePath, areaPath };
+}
+
+function renderChart(prices) {
+  const svg = document.getElementById('chartSvg');
+  const { linePath, areaPath } = buildChartPath(prices);
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#E8A33D" stop-opacity="0.28"/>
+        <stop offset="100%" stop-color="#E8A33D" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${areaPath}" fill="url(#fillGrad)" stroke="none"/>
+    <path d="${linePath}" fill="none" stroke="#E8A33D" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+  `;
+  document.getElementById('chartCaption').textContent =
+    `min ${formatUSD(Math.min(...prices), 0)} · max ${formatUSD(Math.max(...prices), 0)}`;
+}
+
+function renderChartForTimeframe(days) {
+  state.chartDays = days;
+  document.querySelectorAll('.tf-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.days) === days));
+  const slice = state.dailyPrices.slice(-days);
+  if (slice.length > 1) renderChart(slice);
+}
+
+// ---------- estado / reloj ----------
+
+function setStatus(online) {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  dot.classList.toggle('offline', !online);
+  text.textContent = online ? 'en vivo' : 'sin conexión';
+}
+
+function updateClock() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('clockText').textContent = `${hh}:${mm}`;
+}
+
+// ---------- fetch de mercado ----------
+
+async function fetchSnapshot() {
+  const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true');
+  if (!res.ok) throw new Error('snapshot request failed');
+  const data = await res.json();
+  return { price: data.bitcoin.usd, change24h: data.bitcoin.usd_24h_change };
+}
+
+async function fetchDailyPrices(days = 365) {
+  const res = await fetch(`https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}&interval=daily`);
+  if (!res.ok) throw new Error('market_chart request failed');
+  const data = await res.json();
+  return { prices: data.prices.map(p => p[1]), timestamps: data.prices.map(p => p[0]) };
+}
+
+// ---------- etiquetas ----------
+
+function trendLabel(sma20, sma50) {
+  if (!sma20 || !sma50) return { text: '--', cls: '' };
+  return sma20 > sma50 ? { text: 'alcista', cls: 'up' } : { text: 'bajista', cls: 'down' };
+}
+
+function crossLabel(cross) {
+  if (cross === 'golden_cross') return { text: 'cruce alcista ↑', cls: 'up' };
+  if (cross === 'death_cross') return { text: 'cruce bajista ↓', cls: 'down' };
+  return { text: 'sin cruce reciente', cls: '' };
+}
+
+function macdLabel(hist) {
+  if (!hist) return { text: '--', cls: '' };
+  const last = hist[hist.length - 1];
+  const prev = hist[hist.length - 2];
+  const crossedUp = prev <= 0 && last > 0;
+  const crossedDown = prev >= 0 && last < 0;
+  if (crossedUp) return { text: 'girando a alcista', cls: 'up' };
+  if (crossedDown) return { text: 'girando a bajista', cls: 'down' };
+  return last > 0 ? { text: 'positivo', cls: 'up' } : { text: 'negativo', cls: 'down' };
+}
+
+// ---------- veredicto combinado ----------
+
+function computeVerdict(rsi, cross, hist, fng) {
+  let score = 0;
+  const reasons = [];
+
+  if (rsi !== null && rsi < 30) { score += 1; reasons.push(`RSI en ${rsi.toFixed(0)} (sobreventa)`); }
+  if (rsi !== null && rsi > 70) { score -= 1; reasons.push(`RSI en ${rsi.toFixed(0)} (sobrecompra)`); }
+
+  if (cross === 'golden_cross') { score += 1; reasons.push('cruce alcista de medias'); }
+  if (cross === 'death_cross') { score -= 1; reasons.push('cruce bajista de medias'); }
+
+  if (hist) {
+    const last = hist[hist.length - 1], prev = hist[hist.length - 2];
+    if (prev <= 0 && last > 0) { score += 1; reasons.push('MACD girando a alcista'); }
+    if (prev >= 0 && last < 0) { score -= 1; reasons.push('MACD girando a bajista'); }
+  }
+
+  if (fng) {
+    if (fng.value <= 25) { score += 1; reasons.push(`miedo extremo (${fng.value}/100)`); }
+    if (fng.value >= 75) { score -= 1; reasons.push(`codicia extrema (${fng.value}/100)`); }
+  }
+
+  let tag = 'neutral', label = 'SIN SEÑAL CLARA';
+  if (score >= 2) { tag = 'compra'; label = 'SEÑALES DE COMPRA'; }
+  else if (score === 1) { tag = 'compra'; label = 'LEVE SESGO A COMPRA'; }
+  else if (score <= -2) { tag = 'venta'; label = 'SEÑALES DE VENTA'; }
+  else if (score === -1) { tag = 'venta'; label = 'LEVE SESGO A VENTA'; }
+
+  const reason = reasons.length
+    ? reasons.slice(0, 3).join('. ') + '.'
+    : 'Ningún indicador está en zona extrema hoy.';
+
+  return { tag, label, reason };
+}
+
+// ---------- carga principal ----------
+
+async function loadData() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.textContent = 'actualizando…';
+
+  try {
+    const [{ price, change24h }, { prices, timestamps }, fng] = await Promise.all([
+      fetchSnapshot(),
+      fetchDailyPrices(365),
+      fetchFearGreed().catch(() => null),
+    ]);
+
+    state.dailyPrices = prices;
+    state.dailyTimestamps = timestamps;
+    state.currentPrice = price;
+
+    const rsi = computeRSI(prices);
+    const sma20 = sma(prices, SMA_SHORT);
+    const sma50 = sma(prices, SMA_LONG);
+    const shortSeries = smaSeries(prices, SMA_SHORT);
+    const longSeries = smaSeries(prices, SMA_LONG);
+    const cross = detectCross(shortSeries, longSeries);
+    const macd = computeMACD(prices);
+
+    const { whole, cents } = formatPrice(price);
+    document.getElementById('priceText').innerHTML = `$${whole}<span class="cents">.${cents}</span>`;
+
+    const deltaEl = document.getElementById('deltaText');
+    const arrow = change24h >= 0 ? '▲' : '▼';
+    deltaEl.textContent = `${arrow} ${change24h.toFixed(2)}% en las últimas 24h`;
+    deltaEl.className = 'delta ' + (change24h >= 0 ? 'up' : 'down');
+
+    const fngLine = document.getElementById('fngLine');
+    if (fng) {
+      fngLine.innerHTML = `Sentimiento del mercado: <span class="fng-value">${fng.value}/100 · ${translateFng(fng.label)}</span>`;
+    } else {
+      fngLine.textContent = '';
+    }
+
+    document.getElementById('rsiValue').textContent = rsi !== null ? rsi.toFixed(0) : '--';
+
+    const trend = trendLabel(sma20, sma50);
+    const trendEl = document.getElementById('trendValue');
+    trendEl.textContent = trend.text;
+    trendEl.className = 'value ' + trend.cls;
+
+    const crossInfo = crossLabel(cross);
+    const crossEl = document.getElementById('crossValue');
+    crossEl.textContent = crossInfo.text;
+    crossEl.className = 'value ' + crossInfo.cls;
+
+    const macdInfo = macdLabel(macd ? macd.hist : null);
+    const macdEl = document.getElementById('macdValue');
+    macdEl.textContent = macdInfo.text;
+    macdEl.className = 'value ' + macdInfo.cls;
+
+    renderChartForTimeframe(state.chartDays);
+
+    const verdict = computeVerdict(rsi, cross, macd ? macd.hist : null, fng);
+    const verdictEl = document.getElementById('verdictText');
+    verdictEl.textContent = verdict.label;
+    verdictEl.className = 'ticket-verdict ' + verdict.tag;
+    document.getElementById('verdictReason').textContent = verdict.reason;
+
+    setStatus(true);
+    const now = new Date();
+    document.getElementById('updatedText').textContent =
+      `actualizado ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+    renderJournal();
+
+  } catch (err) {
+    setStatus(false);
+    document.getElementById('mainContent').innerHTML =
+      `<div class="error-box">No se pudo conectar con el mercado en este momento.<br>Revisa tu conexión y dale a "actualizar".</div>`;
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'actualizar';
+  }
+}
+
+function translateFng(label) {
+  const map = {
+    'Extreme Fear': 'miedo extremo',
+    'Fear': 'miedo',
+    'Neutral': 'neutral',
+    'Greed': 'codicia',
+    'Extreme Greed': 'codicia extrema',
+  };
+  return map[label] || label;
+}
+
+// ---------- simulador DCA ----------
+
+function runDcaSimulation() {
+  const amount = parseFloat(document.getElementById('dcaAmount').value) || 0;
+  const freqDays = parseInt(document.getElementById('dcaFreq').value, 10);
+  const periodDays = parseInt(document.getElementById('dcaPeriod').value, 10);
+
+  if (amount <= 0 || !state.dailyPrices.length) return;
+
+  const prices = state.dailyPrices.slice(-periodDays);
+  if (prices.length < 2) return;
+
+  let totalBtc = 0, contributions = 0;
+  for (let i = 0; i < prices.length; i += freqDays) {
+    totalBtc += amount / prices[i];
+    contributions += 1;
+  }
+
+  const totalInvested = amount * contributions;
+  const currentValue = totalBtc * state.currentPrice;
+  const gain = currentValue - totalInvested;
+  const gainPct = (gain / totalInvested) * 100;
+
+  const lumpSumBtc = totalInvested / prices[0];
+  const lumpSumValue = lumpSumBtc * state.currentPrice;
+  const lumpSumGainPct = ((lumpSumValue - totalInvested) / totalInvested) * 100;
+
+  document.getElementById('dcaInvested').textContent = formatUSD(totalInvested);
+  document.getElementById('dcaBtc').textContent = totalBtc.toFixed(8) + ' BTC';
+  document.getElementById('dcaValue').textContent = formatUSD(currentValue);
+
+  const gainEl = document.getElementById('dcaGain');
+  gainEl.textContent = `${gain >= 0 ? '+' : ''}${formatUSD(gain)} (${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(1)}%)`;
+  gainEl.className = 'rvalue ' + (gain >= 0 ? 'up' : 'down');
+
+  const lumpEl = document.getElementById('dcaLumpSum');
+  lumpEl.textContent = `${formatUSD(lumpSumValue)} (${lumpSumGainPct >= 0 ? '+' : ''}${lumpSumGainPct.toFixed(1)}%)`;
+  lumpEl.className = 'rvalue ' + (lumpSumValue >= currentValue ? 'up' : 'down');
+
+  document.getElementById('dcaResult').classList.add('show');
+}
+
+// ---------- bitácora ----------
+
+function loadJournal() {
+  try {
+    return JSON.parse(localStorage.getItem(JOURNAL_KEY)) || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveJournal(entries) {
+  localStorage.setItem(JOURNAL_KEY, JSON.stringify(entries));
+}
+
+function addJournalEntry() {
+  const type = document.getElementById('jType').value;
+  const amount = parseFloat(document.getElementById('jAmount').value);
+  const price = parseFloat(document.getElementById('jPrice').value);
+
+  if (!amount || !price || amount <= 0 || price <= 0) return;
+
+  const entries = loadJournal();
+  entries.push({
+    id: Date.now(),
+    type,
+    amount,
+    price,
+    btc: amount / price,
+    date: new Date().toISOString(),
+  });
+  saveJournal(entries);
+
+  document.getElementById('jAmount').value = '';
+  document.getElementById('jPrice').value = '';
+  renderJournal();
+}
+
+function deleteJournalEntry(id) {
+  const entries = loadJournal().filter(e => e.id !== id);
+  saveJournal(entries);
+  renderJournal();
+}
+
+function renderJournal() {
+  const entries = loadJournal();
+  const listEl = document.getElementById('journalList');
+
+  let netBtc = 0, netInvested = 0;
+  entries.forEach(e => {
+    if (e.type === 'compra') { netBtc += e.btc; netInvested += e.amount; }
+    else { netBtc -= e.btc; netInvested -= e.amount; }
+  });
+
+  document.getElementById('jBtcHeld').textContent = netBtc.toFixed(8);
+  document.getElementById('jInvested').textContent = formatUSD(netInvested);
+
+  const avgCostEl = document.getElementById('jAvgCost');
+  if (netBtc > 0 && netInvested > 0) {
+    avgCostEl.textContent = formatUSD(netInvested / netBtc);
+  } else {
+    avgCostEl.textContent = '--';
+  }
+
+  const plEl = document.getElementById('jPL');
+  if (netBtc > 0 && state.currentPrice) {
+    const currentValue = netBtc * state.currentPrice;
+    const pl = currentValue - netInvested;
+    const plPct = netInvested > 0 ? (pl / netInvested) * 100 : 0;
+    plEl.textContent = `${pl >= 0 ? '+' : ''}${formatUSD(pl)} (${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%)`;
+    plEl.className = 'svalue ' + (pl >= 0 ? 'up' : 'down');
+  } else {
+    plEl.textContent = '--';
+    plEl.className = 'svalue';
+  }
+
+  if (!entries.length) {
+    listEl.innerHTML = '<div class="journal-empty">Aún no tienes registros.</div>';
+    return;
+  }
+
+  listEl.innerHTML = entries.slice().reverse().map(e => {
+    const d = new Date(e.date);
+    const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    return `
+      <div class="journal-entry">
+        <div class="je-left">
+          <span class="je-type ${e.type}">${e.type === 'compra' ? 'Compra' : 'Venta'}</span>
+          <span class="je-date">${dateStr} · a ${formatUSD(e.price)}</span>
+        </div>
+        <div style="display:flex; align-items:center;">
+          <span class="je-amount">${formatUSD(e.amount)}</span>
+          <button class="je-del" data-id="${e.id}" title="Eliminar">×</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  listEl.querySelectorAll('.je-del').forEach(btn => {
+    btn.addEventListener('click', () => deleteJournalEntry(Number(btn.dataset.id)));
+  });
+}
+
+// ---------- eventos ----------
+
+document.getElementById('refreshBtn').addEventListener('click', loadData);
+
+document.getElementById('tfGroup').addEventListener('click', (e) => {
+  const btn = e.target.closest('.tf-btn');
+  if (!btn) return;
+  renderChartForTimeframe(Number(btn.dataset.days));
+});
+
+document.getElementById('dcaRunBtn').addEventListener('click', runDcaSimulation);
+
+document.getElementById('jUseCurrentBtn').addEventListener('click', () => {
+  if (state.currentPrice) {
+    document.getElementById('jPrice').value = state.currentPrice.toFixed(2);
+  }
+});
+
+document.getElementById('jAddBtn').addEventListener('click', addJournalEntry);
+
+updateClock();
+setInterval(updateClock, 30000);
+renderJournal();
+loadData();
+setInterval(loadData, AUTO_REFRESH_MS);
+</script>
+
+</body>
+</html>
